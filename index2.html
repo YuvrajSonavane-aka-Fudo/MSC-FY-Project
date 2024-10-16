@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space-Themed Graph Traversal with Backtracking</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        h1 {
+            text-align: center;
+            margin-top: 10px;
+            color: #fff;
+        }
+        .node {
+            cursor: pointer;
+        }
+        .link {
+            stroke: #888;
+            stroke-width: 2px;
+        }
+        .backtrack-link {
+            stroke: #ff9800;
+            stroke-width: 2px;
+            stroke-dasharray: 4; /* Dashed line for backtracking */
+        }
+        .output-modal {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 300px;
+            background: rgba(0, 0, 0, 0.8);
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            display: none; /* Hidden by default */
+            z-index: 10; /* Ensure modal appears above other elements */
+        }
+        .output-modal h2 {
+            margin: 0 0 10px;
+            font-size: 18px;
+            color: #fff;
+        }
+        .output-modal p {
+            margin: 0;
+            color: #fff;
+        }
+        .planet {
+            fill: url(#planetTexture);
+            stroke: #fff;
+            stroke-width: 1.5px;
+        }
+        .spaceship {
+            fill: red;
+            stroke: white;
+            stroke-width: 1;
+        }
+        .center-svg {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 80vh; /* Adjust height for centering */
+        }
+    </style>
+</head>
+<body>
+    <h1>Graph Traversal in Space: BFS & DFS with Backtracking</h1>
+
+    <div style="text-align: center;">
+        <label for="nodeInput">Enter planets (e.g., a,b,c,d):</label>
+        <input type="text" id="nodeInput" placeholder="a,b,c,d">
+        <br><br>
+        <label for="linkInput">Enter connections (e.g., a-b,b-c):</label>
+        <input type="text" id="linkInput" placeholder="a-b,b-c">
+        <br><br>
+        <label for="startNodeInput">Enter starting planet (e.g., a):</label>
+        <input type="text" id="startNodeInput" placeholder="a">
+        <br><br>
+        <button onclick="generateGraph()">Generate Space Graph</button>
+        <button onclick="startBFS()">Start BFS</button>
+        <button onclick="startDFS()">Start DFS with Backtracking</button>
+    </div>
+
+    <div class="center-svg">
+        <svg width="800" height="600"></svg>
+    </div>
+
+    <!-- Output Modal -->
+    <div class="output-modal" id="outputModal">
+        <h2>Traversal Output</h2>
+        <p id="output"></p>
+    </div>
+
+    <script>
+        let nodes = [];
+        let links = [];
+        let nodeMap = {}; // To map planet names to index numbers
+        let svg = d3.select("svg");
+        let animationSpeed = 1000; // Adjust animation speed
+        let spaceship; // Spaceship element
+
+        function generateGraph() {
+            // Clear previous graph
+            svg.selectAll("*").remove();
+            nodes = [];
+            links = [];
+            nodeMap = {};
+            document.getElementById("output").innerHTML = ""; // Clear previous output
+
+            const nodeInput = document.getElementById("nodeInput").value.trim();
+            const linkInput = document.getElementById("linkInput").value.trim();
+
+            // Parse nodes (planets)
+            const nodeNames = nodeInput.split(",");
+            nodeNames.forEach((name, index) => {
+                nodes.push({ id: index, name: name.trim(), x: Math.random() * 700 + 50, y: Math.random() * 500 + 50 });
+                nodeMap[name.trim()] = index;
+            });
+
+            // Parse links (connections between planets)
+            const linkPairs = linkInput.split(",");
+            linkPairs.forEach(pair => {
+                const [source, target] = pair.split("-");
+                if (nodeMap.hasOwnProperty(source.trim()) && nodeMap.hasOwnProperty(target.trim())) {
+                    links.push({
+                        source: nodeMap[source.trim()],
+                        target: nodeMap[target.trim()]
+                    });
+                }
+            });
+
+            // Draw the space graph
+            drawGraph();
+        }
+
+        function drawGraph() {
+            // Add starry background
+            svg.append("rect")
+                .attr("width", "100%")
+                .attr("height", "100%")
+                .attr("fill", "black");
+
+            // Planet textures
+            svg.append("defs")
+                .append("pattern")
+                .attr("id", "planetTexture")
+                .attr("patternUnits", "userSpaceOnUse")
+                .attr("width", 40)
+                .attr("height", 40)
+                .append("image")
+                .attr("xlink:href", "https://upload.wikimedia.org/wikipedia/commons/4/4b/Moon_texture.jpg")
+                .attr("width", 40)
+                .attr("height", 40);
+
+            // Draw links
+            const link = svg.append("g")
+                .selectAll("line")
+                .data(links)
+                .enter().append("line")
+                .attr("class", "link")
+                .attr("x1", d => nodes[d.source].x)
+                .attr("y1", d => nodes[d.source].y)
+                .attr("x2", d => nodes[d.target].x)
+                .attr("y2", d => nodes[d.target].y);
+
+            // Draw planets (nodes)
+            const planet = svg.append("g")
+                .selectAll("circle")
+                .data(nodes)
+                .enter().append("circle")
+                .attr("class", "planet")
+                .attr("r", 30)
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .call(d3.drag() // Add drag behavior
+                    .on("start", dragStarted)
+                    .on("drag", dragged)
+                    .on("end", dragEnded)
+                );
+
+            // Add planet labels
+            const label = svg.append("g")
+                .selectAll("text")
+                .data(nodes)
+                .enter().append("text")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y - 40) // Positioned above the planets
+                .attr("dy", ".35em")
+                .attr("text-anchor", "middle")
+                .style("fill", "#fff")
+                .text(d => "Planet " + d.name);
+
+            // Create spaceship element (hidden initially)
+            spaceship = svg.append("circle")
+                .attr("class", "spaceship")
+                .attr("r", 10)
+                .attr("cx", -50)
+                .attr("cy", -50); // Start outside the view
+        }
+
+        function startBFS() {
+            const visited = [];
+            const queue = [];
+            const startNodeInput = document.getElementById("startNodeInput").value.trim();
+            const startIndex = nodeMap[startNodeInput];
+
+            if (startIndex === undefined) {
+                alert("Starting planet not found!");
+                return;
+            }
+
+            queue.push(startIndex);
+            const output = document.getElementById("output");
+            output.innerHTML = "BFS Traversal: ";
+            showOutputModal(); // Show modal
+
+            function bfsStep() {
+                if (queue.length === 0) return;
+
+                const currentPlanet = queue.shift();
+                if (!visited.includes(currentPlanet)) {
+                    moveSpaceship(currentPlanet); // Move spaceship to current planet
+                    visited.push(currentPlanet);
+                    output.innerHTML += nodes[currentPlanet].name + " "; // Display traversal
+
+                    // Find the neighbors of the current planet
+                    const neighbors = links
+                        .filter(l => l.source === currentPlanet || l.target === currentPlanet)
+                        .map(l => (l.source === currentPlanet ? l.target : l.source))
+                        .filter(n => !visited.includes(n));
+
+                    queue.push(...neighbors);
+                }
+
+                setTimeout(bfsStep, animationSpeed); // Call bfsStep with a delay for animation
+            }
+
+            bfsStep();
+        }
+
+        function startDFS() {
+            const visited = [];
+            const stack = [];
+            const startNodeInput = document.getElementById("startNodeInput").value.trim();
+            const startIndex = nodeMap[startNodeInput];
+
+            if (startIndex === undefined) {
+                alert("Starting planet not found!");
+                return;
+            }
+
+            stack.push(startIndex);
+            const output = document.getElementById("output");
+            output.innerHTML = "DFS Traversal: ";
+            showOutputModal(); // Show modal
+
+            function dfsStep(previousPlanet) {
+                if (stack.length === 0) return;
+
+                const currentPlanet = stack.pop();
+                if (!visited.includes(currentPlanet)) {
+                    moveSpaceship(currentPlanet); // Move spaceship to current planet
+                    visited.push(currentPlanet);
+                    output.innerHTML += nodes[currentPlanet].name + " "; // Display traversal
+
+                    // Find the neighbors of the current planet
+                    const neighbors = links
+                        .filter(l => l.source === currentPlanet || l.target === currentPlanet)
+                        .map(l => (l.source === currentPlanet ? l.target : l.source))
+                        .filter(n => !visited.includes(n));
+
+                    // If we have neighbors, explore them; otherwise, backtrack
+                    if (neighbors.length > 0) {
+                        stack.push(currentPlanet); // Backtrack to current
+                        stack.push(...neighbors); // Push neighbors to stack
+
+                        // Highlight the backtrack link
+                        highlightBacktrackLink(currentPlanet, previousPlanet);
+                    }
+                }
+
+                setTimeout(() => dfsStep(currentPlanet), animationSpeed); // Call dfsStep with a delay for animation
+            }
+
+            dfsStep();
+        }
+
+        function moveSpaceship(planetIndex) {
+            spaceship.transition()
+                .duration(animationSpeed)
+                .attr("cx", nodes[planetIndex].x)
+                .attr("cy", nodes[planetIndex].y);
+        }
+
+        function highlightBacktrackLink(current, previous) {
+            svg.append("line")
+                .attr("class", "backtrack-link")
+                .attr("x1", nodes[current].x)
+                .attr("y1", nodes[current].y)
+                .attr("x2", nodes[previous].x)
+                .attr("y2", nodes[previous].y)
+                .transition()
+                .duration(animationSpeed)
+                .style("opacity", 0)
+                .remove(); // Fade out the backtrack link after the animation
+        }
+
+        function dragStarted(event, d) {
+            d3.select(this).attr("stroke", "orange");
+        }
+
+        function dragged(event, d) {
+            d.x = event.x;
+            d.y = event.y;
+            updateGraph(); // Update positions during dragging
+        }
+
+        function dragEnded(event) {
+            d3.select(this).attr("stroke", null);
+        }
+
+        function updateGraph() {
+            // Update the positions of the planets and links
+            svg.selectAll(".link")
+                .attr("x1", d => nodes[d.source].x)
+                .attr("y1", d => nodes[d.source].y)
+                .attr("x2", d => nodes[d.target].x)
+                .attr("y2", d => nodes[d.target].y);
+
+            svg.selectAll(".planet")
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y);
+
+            svg.selectAll("text")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y - 40); // Keep labels floating above the planets
+        }
+
+        function showOutputModal() {
+            const modal = document.getElementById("outputModal");
+            modal.style.display = "block"; // Show modal
+        }
+    </script>
+</body>
+</html>

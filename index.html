@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graph Traversal Visualization with Draggable Nodes (BFS/DFS)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .node {
+            stroke: #fff;
+            stroke-width: 1.5px;
+            cursor: pointer;
+        }
+        .link {
+            stroke: #999;
+            stroke-opacity: 0.6;
+        }
+        .highlight {
+            fill: orange;
+        }
+        .output {
+            font-weight: bold;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Graph Traversal Visualization (BFS/DFS) with Draggable Nodes</h1>
+
+    <div>
+        <label for="nodeInput">Enter nodes (e.g., a,b,c,d):</label>
+        <input type="text" id="nodeInput" placeholder="a,b,c,d">
+        <br><br>
+        <label for="linkInput">Enter edges (e.g., a-b,b-c):</label>
+        <input type="text" id="linkInput" placeholder="a-b,b-c">
+        <br><br>
+        <button onclick="generateGraph()">Generate Graph</button>
+    </div>
+
+    <button onclick="startBFS()">Start BFS</button>
+    <button onclick="startDFS()">Start DFS</button>
+
+    <svg width="600" height="400"></svg>
+
+    <div id="output" class="output"></div>
+
+    <script>
+        let nodes = [];
+        let links = [];
+        let nodeMap = {}; // To map node letters to index numbers
+        let svg = d3.select("svg");
+        let animationSpeed = 1000; // Adjust animation speed
+
+        function generateGraph() {
+            // Clear previous graph
+            svg.selectAll("*").remove();
+            nodes = [];
+            links = [];
+            nodeMap = {};
+            document.getElementById("output").innerHTML = ""; // Clear previous output
+
+            const nodeInput = document.getElementById("nodeInput").value.trim();
+            const linkInput = document.getElementById("linkInput").value.trim();
+
+            // Parse nodes
+            const nodeNames = nodeInput.split(",");
+            nodeNames.forEach((name, index) => {
+                nodes.push({ id: index, name: name.trim(), x: Math.random() * 500 + 50, y: Math.random() * 300 + 50 });
+                nodeMap[name.trim()] = index;
+            });
+
+            // Parse links
+            const linkPairs = linkInput.split(",");
+            linkPairs.forEach(pair => {
+                const [source, target] = pair.split("-");
+                if (nodeMap.hasOwnProperty(source.trim()) && nodeMap.hasOwnProperty(target.trim())) {
+                    links.push({
+                        source: nodeMap[source.trim()],
+                        target: nodeMap[target.trim()]
+                    });
+                }
+            });
+
+            // Draw graph
+            drawGraph();
+        }
+
+        function drawGraph() {
+            svg = d3.select("svg");
+            svg.selectAll("*").remove();
+
+            // Draw links
+            const link = svg.append("g")
+                .selectAll("line")
+                .data(links)
+                .enter().append("line")
+                .attr("class", "link")
+                .attr("x1", d => nodes[d.source].x)
+                .attr("y1", d => nodes[d.source].y)
+                .attr("x2", d => nodes[d.target].x)
+                .attr("y2", d => nodes[d.target].y)
+                .style("stroke", "#999")
+                .style("stroke-width", 2);
+
+            // Draw nodes
+            const node = svg.append("g")
+                .selectAll("circle")
+                .data(nodes)
+                .enter().append("circle")
+                .attr("class", "node")
+                .attr("r", 20)
+                .attr("cx", d => d.x)
+                .attr("cy", d => d.y)
+                .style("fill", "#69b3a2")
+                .call(d3.drag() // Add drag behavior to nodes
+                    .on("start", dragStarted)
+                    .on("drag", dragged)
+                    .on("end", dragEnded)
+                );
+
+            // Draw node labels
+            const label = svg.append("g")
+                .selectAll("text")
+                .data(nodes)
+                .enter().append("text")
+                .attr("x", d => d.x)
+                .attr("y", d => d.y)
+                .attr("dy", ".35em")
+                .attr("text-anchor", "middle")
+                .text(d => d.name);
+
+            // Function to update positions when dragging
+            function updateGraph() {
+                link
+                    .attr("x1", d => nodes[d.source].x)
+                    .attr("y1", d => nodes[d.source].y)
+                    .attr("x2", d => nodes[d.target].x)
+                    .attr("y2", d => nodes[d.target].y);
+
+                node
+                    .attr("cx", d => d.x)
+                    .attr("cy", d => d.y);
+
+                label
+                    .attr("x", d => d.x)
+                    .attr("y", d => d.y);
+            }
+
+            // Dragging event handlers
+            function dragStarted(event, d) {
+                d3.select(this).raise().attr("stroke", "black");
+            }
+
+            function dragged(event, d) {
+                d.x = event.x;
+                d.y = event.y;
+                updateGraph(); // Update the graph positions during dragging
+            }
+
+            function dragEnded(event, d) {
+                d3.select(this).attr("stroke", null);
+            }
+        }
+
+        function startBFS() {
+            const visited = [];
+            const queue = [0]; // Start with node 0
+            const output = document.getElementById("output");
+            output.innerHTML = "BFS Traversal: ";
+
+            function bfsStep() {
+                if (queue.length === 0) return;
+
+                const currentNode = queue.shift();
+                if (!visited.includes(currentNode)) {
+                    highlightNode(currentNode);
+                    visited.push(currentNode);
+                    output.innerHTML += nodes[currentNode].name + " "; // Display traversal
+
+                    // Find the neighbors of the current node
+                    const neighbors = links
+                        .filter(l => l.source === currentNode || l.target === currentNode)
+                        .map(l => (l.source === currentNode ? l.target : l.source))
+                        .filter(n => !visited.includes(n));
+
+                    queue.push(...neighbors);
+                }
+
+                setTimeout(bfsStep, animationSpeed); // Call bfsStep with a delay for animation
+            }
+
+            bfsStep();
+        }
+
+        function startDFS() {
+            const visited = [];
+            const stack = [0]; // Start with node 0
+            const output = document.getElementById("output");
+            output.innerHTML = "DFS Traversal: ";
+
+            function dfsStep() {
+                if (stack.length === 0) return;
+
+                const currentNode = stack.pop();
+                if (!visited.includes(currentNode)) {
+                    highlightNode(currentNode);
+                    visited.push(currentNode);
+                    output.innerHTML += nodes[currentNode].name + " "; // Display traversal
+
+                    // Find the neighbors of the current node
+                    const neighbors = links
+                        .filter(l => l.source === currentNode || l.target === currentNode)
+                        .map(l => (l.source === currentNode ? l.target : l.source))
+                        .filter(n => !visited.includes(n));
+
+                    stack.push(...neighbors);
+                }
+
+                setTimeout(dfsStep, animationSpeed); // Call dfsStep with a delay for animation
+            }
+
+            dfsStep();
+        }
+
+        function highlightNode(nodeId) {
+            svg.selectAll("circle")
+                .filter(d => d.id === nodeId)
+                .transition()
+                .duration(animationSpeed)
+                .style("fill", "orange");
+
+            setTimeout(() => {
+                svg.selectAll("circle")
+                    .filter(d => d.id === nodeId)
+                    .transition()
+                    .duration(animationSpeed)
+                    .style("fill", "#69b3a2");
+            }, animationSpeed);
+        }
+    </script>
+</body>
+</html>
